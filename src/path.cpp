@@ -20,6 +20,10 @@
 #include <type_traits>
 #include <vector>
 
+#if defined(__HAIKU__)
+#include <kernel/fs_info.h>
+#endif
+
 #include "common.h"
 #include "env.h"
 #include "expand.h"
@@ -127,6 +131,17 @@ static dir_remoteness_t path_remoteness(const wcstring &path) {
             // Other FSes are assumed local.
             return dir_remoteness_t::local;
     }
+#elif defined(__HAIKU__)
+    dev_t device = dev_for_path(narrow.c_str());
+    if (device < B_NO_ERROR) {
+         return dir_remoteness_t::unknown;
+
+    fs_info info;
+    status_t result = fs_stat_dev(device, &info);
+    if (result != B_OK)
+        return dir_remoteness_t::unknown;
+
+    return (info.flags & B_FS_IS_SHARED) ? dir_remoteness_t::remote : dir_remoteness_t::local;
 #elif defined(ST_LOCAL)
     // ST_LOCAL is a flag to statvfs, which is itself standardized.
     // In practice the only system to use this path is NetBSD.
